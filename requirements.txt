@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.1.0+cu118
+torchdata==0.7.0
+torchvision==0.16.0+cu118
+tensorboard==2.15.1
+diffusers==0.25.0
+kornia==0.7.0
+matplotlib==3.8.2

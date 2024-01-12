@@ -1,0 +1,35 @@
+[project]
+name = "colorize-diffusers"
+version = "0.0.1"
+description = "Colorize images using conditioned pix2pix diffusion models"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Renzo Tassara", email = "rtassaramiller@gmail.com" }
+]
+classifiers = ["Programming Language :: Python :: 3.11"]
+dynamic = ["depndencies"]
+
+[tools.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+
+[tool.ruff]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "B",    # bugbear
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade
+    "ISC",  # implicit-str-concat
+    "G",    # logging-format
+    "PT",   # pytest style
+    "SIM",  # simplify
+    "C4",   # comprehensions
+    "PD",   # pandas-vet
+]
+
+ignore = ["D212", "PD011", "PT011"]
+
+[tool.isort]
+profile = "black"
