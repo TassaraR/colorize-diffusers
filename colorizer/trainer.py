@@ -197,10 +197,10 @@ class Trainer:
                     progress_bar.update(1)
                     self.global_step += 1
                     train_loss = 0.0
-            self._save_checkpoint()
-            progress_bar.set_postfix(step_loss=loss.detach().item())
+                    self._save_checkpoint()
+                progress_bar.set_postfix(step_loss=loss.detach().item())
 
-            if self.global_step >= self.max_train_steps:
-                break
+                if self.global_step >= self.max_train_steps:
+                    break
         self.accelerator.wait_for_everyone()
         self.accelerator.end_training()
