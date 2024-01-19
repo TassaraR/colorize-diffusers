@@ -39,7 +39,6 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
 
         self.accelerator = Accelerator(**accelerator_kwargs)
-        # TODO: Need to add project to this thing
         # self.accelerator.init_trackers()
 
         self.epochs = epochs
@@ -143,7 +142,6 @@ class Trainer:
             train_loss = 0.0
             for step, batch in enumerate(self.train_dataloader):
 
-                # skip steps
                 if self._skip_step(step):
                     if step % self.gradient_accumulation_steps == 0:
                         progress_bar.update(1)
