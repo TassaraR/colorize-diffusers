@@ -93,7 +93,7 @@ class Trainer:
         )
         self.resume_from_checkpoint = True
 
-    def _skip_step(self, step: int) -> None:
+    def _skip_step(self, step: int) -> bool:
         skip_condition = (
             self.resume_from_checkpoint
             and self.epochs == self.first_epoch
@@ -101,7 +101,7 @@ class Trainer:
         )
         return skip_condition
 
-    def _save_checkpoint(self):
+    def _save_checkpoint(self) -> None:
 
         if self.checkpointing_steps is None or self.checkpoints_output_dir is None:
             return
@@ -134,7 +134,7 @@ class Trainer:
             )
             self.accelerator.save_state(save_path)
 
-    def train(self):
+    def train(self) -> None:
 
         self.ema.to(self.accelerator.device)
 
