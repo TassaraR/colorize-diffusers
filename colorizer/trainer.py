@@ -134,14 +134,15 @@ class Trainer:
             )
             self.accelerator.save_state(save_path)
 
-    def train(self) -> None:
+    def train(self, disable_progress_bar: bool = False) -> None:
 
         self.ema.to(self.accelerator.device)
 
         progress_bar = tqdm(
             range(self.global_step, self.max_train_steps),
-            disable=not self.accelerator.is_local_main_process,
+            disable=not self.accelerator.is_local_main_process or disable_progress_bar,
         )
+        progress_bar.set_description("Steps")
 
         for _epoch in range(self.first_epoch, self.epochs):
             self.unet.train()
@@ -196,5 +197,5 @@ class Trainer:
                     progress_bar.update(1)
                     self.global_step += 1
                     train_loss = 0.0
-
+            progress_bar.set_postfix(step_loss=loss.detach().item())
             self._save_checkpoint()
