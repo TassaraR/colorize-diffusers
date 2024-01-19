@@ -9,6 +9,7 @@ from accelerate import Accelerator
 from diffusers import DDPMScheduler, UNet2DModel
 from diffusers.training_utils import EMAModel
 from torch.optim import Optimizer
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 import colorizer.utils as utils
@@ -21,16 +22,19 @@ class Trainer:
         noise_scheduler: DDPMScheduler,
         ema: EMAModel,
         optimizer: Optimizer,
-        train_dataloader,
-        epochs,
-        gradient_accumulation_steps,
-        checkpointing_steps,
-        checkpoints_total_limit,
-        checkpoints_output_dir,
+        train_dataloader: DataLoader,
+        epochs: int,
+        gradient_accumulation_steps: int = 1,
         max_train_steps: int | None = None,
         lr_scheduler: Callable | None = None,
+        checkpointing_steps: int | None = None,
+        checkpoints_total_limit: int | None = None,
+        checkpoints_output_dir: str | None = None,
         accelerator_kwargs: dict | None = None,
     ):
+        self.accelerator = Accelerator(**accelerator_kwargs)
+
+        # Model related variables
         self.unet = unet
         self.noise_scheduler = noise_scheduler
         self.train_dataloader = train_dataloader
@@ -38,39 +42,46 @@ class Trainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
 
-        self.accelerator = Accelerator(**accelerator_kwargs)
-        # self.accelerator.init_trackers()
+        (self.unet, self.optimizer, self.train_dataloader,) = self.accelerator.prepare(
+            self.unet,
+            self.optimizer,
+            self.train_dataloader,
+        )
+        if lr_scheduler:
+            self.lr_scheduler = self.accelerator.prepare_scheduler(self.lr_scheduler)
 
+        # Training steps
         self.epochs = epochs
         self.global_step = 0
         self.first_epoch = 0
         self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.max_train_steps = max_train_steps
+        self.overrode_max_train_steps = False
+        self.num_update_steps_per_epoch = math.ceil(
+            len(self.train_dataloader) / self.gradient_accumulation_steps
+        )
+        self.recompute_training_steps()
 
+        # Checkpoint related variables
         self.checkpointing_steps = checkpointing_steps
         self.checkpoints_total_limit = checkpoints_total_limit
         self.resume_from_checkpoint = False
         self.checkpoints_output_dir = checkpoints_output_dir
         self.resume_step = -1
 
-        # CALC TRAINING STEPS
-        overrode_max_train_steps = False
-        self.num_update_steps_per_epoch = math.ceil(
-            len(train_dataloader) / gradient_accumulation_steps
-        )
-        if max_train_steps is None:
+    def recompute_training_steps(self) -> None:
+        if self.max_train_steps is None:
             self.max_train_steps = self.epochs * self.num_update_steps_per_epoch
-            overrode_max_train_steps = True
+            self.overrode_max_train_steps = True
 
         self.num_update_steps_per_epoch = math.ceil(
-            len(train_dataloader) / gradient_accumulation_steps
+            len(self.train_dataloader) / self.gradient_accumulation_steps
         )
-        if overrode_max_train_steps:
+        if self.overrode_max_train_steps:
             self.max_train_steps = self.epochs * self.num_update_steps_per_epoch
-        # Afterwards we recalculate our number of training epochs
         self.epochs = math.ceil(self.max_train_steps / self.num_update_steps_per_epoch)
 
-    def load_checkpoint(self, path: str):
-
+    def load_checkpoint(self, path: str) -> None:
         self.accelerator.load_state(path)
         self.global_step = int(path.split("-")[-1])
         resume_global_step = self.global_step * self.gradient_accumulation_steps
@@ -82,7 +93,7 @@ class Trainer:
         )
         self.resume_from_checkpoint = True
 
-    def _skip_step(self, step):
+    def _skip_step(self, step: int) -> None:
         skip_condition = (
             self.resume_from_checkpoint
             and self.epochs == self.first_epoch
@@ -91,6 +102,10 @@ class Trainer:
         return skip_condition
 
     def _save_checkpoint(self):
+
+        if self.checkpointing_steps is None or self.checkpoints_output_dir is None:
+            return
+
         if (
             self.accelerator.is_main_process
             and self.global_step % self.checkpointing_steps == 0
@@ -122,15 +137,6 @@ class Trainer:
     def train(self):
 
         self.ema.to(self.accelerator.device)
-
-        (
-            self.unet,
-            self.optimizer,
-            self.train_dataloader,
-            self.lr_scheduler,
-        ) = self.accelerator.prepare(
-            self.unet, self.optimizer, self.train_dataloader, self.lr_scheduler
-        )
 
         progress_bar = tqdm(
             range(self.global_step, self.max_train_steps),
@@ -181,10 +187,8 @@ class Trainer:
                         self.accelerator.clip_grad_norm_(self.unet.parameters(), 1.0)
 
                     self.optimizer.step()
-
                     if self.lr_scheduler:
                         self.lr_scheduler.step()
-
                     self.optimizer.zero_grad()
 
                 if self.accelerator.sync_gradients:
