@@ -1,5 +1,5 @@
 import torch
-from diffusers import DiffusionPipeline, ImagePipelineOutput
+from diffusers import DDPMScheduler, DiffusionPipeline, ImagePipelineOutput, UNet2DModel
 from diffusers.utils.torch_utils import randn_tensor
 from kornia.color.lab import lab_to_rgb
 
@@ -7,7 +7,7 @@ from kornia.color.lab import lab_to_rgb
 class Pix2PixColorizerPipeline(DiffusionPipeline):
     model_cpu_offload_seq = "unet"
 
-    def __init__(self, unet, scheduler):
+    def __init__(self, unet: UNet2DModel, scheduler: DDPMScheduler):
         super().__init__()
         self.register_modules(unet=unet, scheduler=scheduler)
 
@@ -18,7 +18,7 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
         generator: torch.Generator | list[torch.Generator] | None = None,
         num_inference_steps: int = 2000,
         return_dict: bool = True,
-    ) -> ImagePipelineOutput | tuple:
+    ) -> ImagePipelineOutput | tuple[torch.Tensor]:
 
         bw_images = bw_images.to(self.device)  # range -1 to 1
         # Sample gaussian noise to begin loop
