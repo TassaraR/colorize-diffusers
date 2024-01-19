@@ -7,3 +7,4 @@ diffusers==0.25.0
 accelerate==0.26.0
 kornia==0.7.0
 matplotlib==3.8.2
+tqdm==4.66.1
