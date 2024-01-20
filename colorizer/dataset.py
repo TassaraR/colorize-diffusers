@@ -9,7 +9,7 @@ class ImageDataset(Dataset):
 
         self.transform = v2.Compose(
             [
-                v2.Resize((resize, resize), antialias=False),
+                v2.Resize((resize, resize), antialias=True),
                 v2.RandomHorizontalFlip(),
                 v2.Lambda(lambda im: im / 255),
             ]

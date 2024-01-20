@@ -46,7 +46,7 @@ def load_validation_images(
 
     transform = v2.Compose(
         [
-            v2.Resize((resize, resize)),
+            v2.Resize((resize, resize), antialias=True),
             v2.Lambda(lambda im: im / 255),
             v2.Normalize(mean=norm_mean, std=norm_std),
         ]
