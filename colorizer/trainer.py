@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 import colorizer.utils as utils
+from colorizer.inference import Pix2PixColorizerPipeline
 
 
 class Trainer:
@@ -137,7 +138,11 @@ class Trainer:
             )
             self.accelerator.save_state(save_path)
 
-    def train(self, disable_progress_bar: bool = False) -> None:
+    def train(
+        self,
+        validation_images: torch.Tensor | None = None,
+        disable_progress_bar: bool = False,
+    ) -> None:
 
         self.ema.to(self.accelerator.device)
         progress_bar = tqdm(
@@ -204,5 +209,18 @@ class Trainer:
 
                 if self.global_step >= self.max_train_steps:
                     break
-        self.accelerator.wait_for_everyone()
+
+            self.accelerator.wait_for_everyone()
+            if self.accelerator.is_main_process:
+                unet = self.accelerator.unwrap(self.unet)
+                # TODO: not so sure I need to do this, better check
+                self.ema.copy_to(unet.parameters())
+                # TODO: This pipeline currently returns the resulting lab image,
+                #       this should be changed so it only returns the pred ab
+                #       as this will make easier to reconstruct images later
+                pipeline = Pix2PixColorizerPipeline(
+                    unet=unet, scheduler=self.noise_scheduler
+                )
+                eval_pred = pipeline(validation_images)  # ruff: noqa
+
         self.accelerator.end_training()
