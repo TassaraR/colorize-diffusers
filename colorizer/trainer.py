@@ -32,7 +32,10 @@ class Trainer:
         checkpoints_output_dir: str | None = None,
         accelerator_kwargs: dict | None = None,
     ):
-        self.accelerator = Accelerator(**accelerator_kwargs)
+        default_accelerator_settings = {"mixed_precision": "fp16"}
+        _accelerator_kwargs = {**default_accelerator_settings, **accelerator_kwargs}
+        self.accelerator = Accelerator(**_accelerator_kwargs)
+        self.accelerator.gradient_accumulation_steps = gradient_accumulation_steps
 
         # Model related variables
         self.unet = unet
@@ -60,7 +63,7 @@ class Trainer:
         self.num_update_steps_per_epoch = math.ceil(
             len(self.train_dataloader) / self.gradient_accumulation_steps
         )
-        self.recompute_training_steps()
+        self._recompute_training_steps()
 
         # Checkpoint related variables
         self.checkpointing_steps = checkpointing_steps
@@ -69,7 +72,7 @@ class Trainer:
         self.checkpoints_output_dir = checkpoints_output_dir
         self.resume_step = -1
 
-    def recompute_training_steps(self) -> None:
+    def _recompute_training_steps(self) -> None:
         if self.max_train_steps is None:
             self.max_train_steps = self.epochs * self.num_update_steps_per_epoch
             self.overrode_max_train_steps = True
@@ -137,9 +140,9 @@ class Trainer:
     def train(self, disable_progress_bar: bool = False) -> None:
 
         self.ema.to(self.accelerator.device)
-
         progress_bar = tqdm(
             range(self.global_step, self.max_train_steps),
+            ncols="33%",
             disable=not self.accelerator.is_local_main_process or disable_progress_bar,
         )
         progress_bar.set_description("Steps")
