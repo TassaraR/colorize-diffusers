@@ -1,6 +1,7 @@
 import math
 import os
 import shutil
+import warnings
 from collections.abc import Callable
 
 import torch
@@ -138,9 +139,45 @@ class Trainer:
             )
             self.accelerator.save_state(save_path)
 
+    def evaluate_images(
+        self, val_images: torch.Tensor | None = None, val_steps: int | None = None
+    ) -> torch.Tensor | None:
+
+        if any(val_images, val_steps) and not any(val_images, val_steps):
+            warnings.warn(
+                "Not all validation parameters were set. Validation will not happen",
+                stacklevel=2,
+            )
+            return
+
+        is_valid_step = (
+            self.global_step % self.eval_steps == 0
+            # TODO: Check if this actually makes sense
+            or self.global_step == self.max_train_steps
+        )
+
+        if (
+            self.accelerator.is_main_process
+            and val_images is not None
+            and val_steps is not None
+            and is_valid_step
+        ):
+            unet = self.accelerator.unwrap(self.unet)
+            pipeline = Pix2PixColorizerPipeline(
+                unet=unet, scheduler=self.noise_scheduler
+            )
+            eval_pred = pipeline(val_images)
+            # TODO: Save locally or use a tracker such as tensorboard or wandb
+            return eval_pred
+
+    def write_to_logger(self):
+        # TODO: Implement this
+        pass
+
     def train(
         self,
         validation_images: torch.Tensor | None = None,
+        validation_steps: int | None = None,
         disable_progress_bar: bool = False,
     ) -> None:
 
@@ -211,16 +248,8 @@ class Trainer:
                     break
 
             self.accelerator.wait_for_everyone()
-            if self.accelerator.is_main_process:
-                unet = self.accelerator.unwrap(self.unet)
-                # TODO: not so sure I need to do this, better check
-                self.ema.copy_to(unet.parameters())
-                # TODO: This pipeline currently returns the resulting lab image,
-                #       this should be changed so it only returns the pred ab
-                #       as this will make easier to reconstruct images later
-                pipeline = Pix2PixColorizerPipeline(
-                    unet=unet, scheduler=self.noise_scheduler
-                )
-                eval_pred = pipeline(validation_images)  # ruff: noqa
+            self.evaluate_images(
+                val_images=validation_images, val_steps=validation_steps
+            )
 
         self.accelerator.end_training()
