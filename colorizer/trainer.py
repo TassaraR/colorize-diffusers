@@ -37,16 +37,21 @@ class Trainer:
         tracker_log_directory: str = "logs",
     ):
 
-        self.accelerator.init_trackers(tracker_experiment_name)
         default_accelerator_settings = {
             "mixed_precision": "fp16",
-            "log_with": "tensorboard",
-            "project_dir": tracker_log_directory,
         }
+
+        if tracker_experiment_name:
+            default_accelerator_settings["log_with"] = "tensorboard"
+            default_accelerator_settings["project_dir"] = tracker_log_directory
+
         acc_kwargs = accelerator_kwargs if accelerator_kwargs else {}
         _accelerator_kwargs = {**default_accelerator_settings, **acc_kwargs}
         self.accelerator = Accelerator(**_accelerator_kwargs)
         self.accelerator.gradient_accumulation_steps = gradient_accumulation_steps
+
+        if tracker_experiment_name:
+            self.accelerator.init_trackers(tracker_experiment_name)
 
         # Model related variables
         self.unet = unet
@@ -252,9 +257,6 @@ class Trainer:
                     self._save_checkpoint()
                 progress_bar.set_postfix(step_loss=loss.detach().item())
 
-                if self.global_step >= self.max_train_steps:
-                    break
-
                 if self.accelerator.is_main_process:
                     pipeline = Pix2PixColorizerPipeline(
                         unet=self.accelerator.unwrap_model(self.unet),
@@ -265,6 +267,9 @@ class Trainer:
                         val_images=validation_images,
                         val_steps=validation_steps,
                     )
+
+                if self.global_step >= self.max_train_steps:
+                    break
 
         self.accelerator.wait_for_everyone()
         self.accelerator.end_training()
