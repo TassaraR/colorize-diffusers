@@ -159,16 +159,14 @@ class Trainer:
         val_steps: int | None = None,
     ) -> None:
 
+        if not all([val_images, val_steps]):
+            return
+
         is_valid_step = (
             self.global_step % val_steps == 0
             or self.global_step == self.max_train_steps
         )
-        if (
-            self.accelerator.is_main_process
-            and val_images is not None
-            and val_steps is not None
-            and is_valid_step
-        ):
+        if self.accelerator.is_main_process and is_valid_step:
             for tracker in self.accelerator.trackers:
                 if tracker.name == "tensorboard":
                     writer = tracker.writer
