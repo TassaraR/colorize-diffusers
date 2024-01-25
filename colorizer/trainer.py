@@ -159,7 +159,7 @@ class Trainer:
         val_steps: int | None = None,
     ) -> None:
 
-        if not all([val_images, val_steps]):
+        if any([val_images is None, val_steps is None]):
             return
 
         is_valid_step = (
