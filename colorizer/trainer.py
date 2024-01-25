@@ -160,7 +160,7 @@ class Trainer:
     ) -> None:
 
         is_valid_step = (
-            self.global_step % self.eval_steps == 0
+            self.global_step % val_steps == 0
             or self.global_step == self.max_train_steps
         )
         if (
