@@ -181,13 +181,14 @@ class Trainer:
         disable_progress_bar: bool = False,
     ) -> None:
 
-        if any([validation_images, validation_steps]) and not all(
-            [validation_images, validation_steps]
-        ):
-            raise TypeError(
-                "Invalid keyword arguments: "
-                "Both validation_images and validation_steps must be set to log images"
-            )
+        # if any([validation_images, validation_steps]) and not all(
+        #     [validation_images, validation_steps]
+        # ):
+        #     raise TypeError(
+        #         "Invalid keyword arguments: "
+        #         "Both validation_images and validation_steps
+        #         # must be set to log images"
+        #     )
 
         self.ema.to(self.accelerator.device)
         progress_bar = tqdm(
