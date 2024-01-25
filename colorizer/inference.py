@@ -16,7 +16,7 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
         self,
         bw_images: torch.Tensor,
         generator: torch.Generator | list[torch.Generator] | None = None,
-        num_inference_steps: int = 2000,
+        num_inference_steps: int = 1000,
         return_dict: bool = True,
     ) -> ImagePipelineOutput | tuple[torch.Tensor]:
 
