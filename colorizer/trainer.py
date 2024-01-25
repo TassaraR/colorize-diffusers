@@ -170,9 +170,11 @@ class Trainer:
             for tracker in self.accelerator.trackers:
                 if tracker.name == "tensorboard":
                     writer = tracker.writer
-                    pred_images = pipeline(val_images)
+                    pred_images = pipeline(val_images).images
                     grid = make_grid(pred_images, nrow=4, padding=1)
-                    writer.add_images("eval-images", grid, global_step=self.global_step)
+                    writer.add_image(
+                        tag="eval-images", img_tensor=grid, global_step=self.global_step
+                    )
 
     def train(
         self,
