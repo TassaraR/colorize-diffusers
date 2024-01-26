@@ -194,7 +194,7 @@ class Trainer:
 
         self.ema.to(self.accelerator.device)
         progress_bar = tqdm(
-            range(self.global_step, self.max_train_steps),
+            range(0, self.max_train_steps),
             disable=not self.accelerator.is_local_main_process or disable_progress_bar,
         )
         progress_bar.set_description("Steps")
