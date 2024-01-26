@@ -112,10 +112,10 @@ class Trainer:
         )
         self.resume_from_checkpoint = True
 
-    def _skip_step(self, step: int) -> bool:
+    def _skip_step(self, step: int, epoch: int) -> bool:
         skip_condition = (
             self.resume_from_checkpoint
-            and self.epochs == self.first_epoch
+            and epoch == self.first_epoch
             and step < self.resume_step
         )
         return skip_condition
@@ -183,14 +183,14 @@ class Trainer:
         disable_progress_bar: bool = False,
     ) -> None:
 
-        # if any([validation_images, validation_steps]) and not all(
-        #     [validation_images, validation_steps]
-        # ):
-        #     raise TypeError(
-        #         "Invalid keyword arguments: "
-        #         "Both validation_images and validation_steps
-        #         # must be set to log images"
-        #     )
+        if any(
+            [validation_images is not None, validation_steps is not None]
+        ) and not all([validation_images is not None, validation_steps is not None]):
+            raise TypeError(
+                "Invalid keyword arguments: "
+                "Both validation_images and validation_steps"
+                "must be set to log images"
+            )
 
         self.ema.to(self.accelerator.device)
         progress_bar = tqdm(
@@ -198,15 +198,15 @@ class Trainer:
             disable=not self.accelerator.is_local_main_process or disable_progress_bar,
         )
         progress_bar.set_description("Steps")
+        if self.resume_from_checkpoint:
+            progress_bar.update(self.global_step)
 
-        for _epoch in range(self.first_epoch, self.epochs):
+        for epoch in range(self.first_epoch, self.epochs):
             self.unet.train()
             train_loss = 0.0
             for step, batch in enumerate(self.train_dataloader):
 
-                if self._skip_step(step):
-                    if step % self.gradient_accumulation_steps == 0:
-                        progress_bar.update(1)
+                if self._skip_step(step=step, epoch=epoch):
                     continue
 
                 with self.accelerator.accumulate(self.unet):
