@@ -1,10 +1,13 @@
 import os
 import random
 
+import numpy as np
 import torch
 from kornia.color.lab import rgb_to_lab
+from PIL import Image
 from torchvision import io
 from torchvision.transforms import v2
+from torchvision.utils import make_grid
 
 
 def rgb_to_zero_centered_normalized_lab(
@@ -63,3 +66,14 @@ def load_validation_images(
     images = [transform(io.read_image(path, mode=mode)) for path in images_paths]
     batch = torch.stack(images)
     return batch
+
+
+def evaluate_model(
+    pred_images: torch.tensor, step: int, nrow: int = 4, save_dir: str | None = None
+) -> np.ndarray:
+    grid = make_grid(pred_images, nrow=nrow, padding=1).permute(1, 2, 0).numpy()
+    if save_dir is not None:
+        image_grid = Image.fromarray((grid.numpy() * 255).astype(np.uint8))
+        os.makedirs(save_dir, exist_ok=True)
+        image_grid.save(os.path.join(save_dir, f"step-{step}.png"))
+    return grid.numpy()

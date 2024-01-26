@@ -10,9 +10,11 @@ from diffusers import DDPMScheduler, UNet2DModel
 from diffusers.training_utils import EMAModel
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torchvision.utils import make_grid
 from tqdm.auto import tqdm
 
 import colorizer.utils as utils
+from colorizer.inference import Pix2PixColorizerPipeline
 
 
 class Trainer:
@@ -31,11 +33,25 @@ class Trainer:
         checkpoints_total_limit: int | None = None,
         checkpoints_output_dir: str | None = None,
         accelerator_kwargs: dict | None = None,
+        tracker_experiment_name: str | None = None,
+        tracker_log_directory: str = "logs",
     ):
-        default_accelerator_settings = {"mixed_precision": "fp16"}
-        _accelerator_kwargs = {**default_accelerator_settings, **accelerator_kwargs}
+
+        default_accelerator_settings = {
+            "mixed_precision": "fp16",
+        }
+
+        if tracker_experiment_name:
+            default_accelerator_settings["log_with"] = "tensorboard"
+            default_accelerator_settings["project_dir"] = tracker_log_directory
+
+        acc_kwargs = accelerator_kwargs if accelerator_kwargs else {}
+        _accelerator_kwargs = {**default_accelerator_settings, **acc_kwargs}
         self.accelerator = Accelerator(**_accelerator_kwargs)
         self.accelerator.gradient_accumulation_steps = gradient_accumulation_steps
+
+        if tracker_experiment_name:
+            self.accelerator.init_trackers(tracker_experiment_name)
 
         # Model related variables
         self.unet = unet
@@ -96,16 +112,15 @@ class Trainer:
         )
         self.resume_from_checkpoint = True
 
-    def _skip_step(self, step: int) -> bool:
+    def _skip_step(self, step: int, epoch: int) -> bool:
         skip_condition = (
             self.resume_from_checkpoint
-            and self.epochs == self.first_epoch
+            and epoch == self.first_epoch
             and step < self.resume_step
         )
         return skip_condition
 
     def _save_checkpoint(self) -> None:
-
         if self.checkpointing_steps is None or self.checkpoints_output_dir is None:
             return
 
@@ -137,23 +152,61 @@ class Trainer:
             )
             self.accelerator.save_state(save_path)
 
-    def train(self, disable_progress_bar: bool = False) -> None:
+    def tracker_evaluate_images(
+        self,
+        pipeline: Pix2PixColorizerPipeline,
+        val_images: torch.Tensor | None = None,
+        val_steps: int | None = None,
+    ) -> None:
+
+        if any([val_images is None, val_steps is None]):
+            return
+
+        is_valid_step = (
+            self.global_step % val_steps == 0
+            or self.global_step == self.max_train_steps
+        )
+        if self.accelerator.is_main_process and is_valid_step:
+            for tracker in self.accelerator.trackers:
+                if tracker.name == "tensorboard":
+                    writer = tracker.writer
+                    pred_images = pipeline(val_images).images
+                    grid = make_grid(pred_images, nrow=4, padding=1)
+                    writer.add_image(
+                        tag="eval-images", img_tensor=grid, global_step=self.global_step
+                    )
+
+    def train(
+        self,
+        validation_images: torch.Tensor | None = None,
+        validation_steps: int | None = None,
+        disable_progress_bar: bool = False,
+    ) -> None:
+
+        if any(
+            [validation_images is not None, validation_steps is not None]
+        ) and not all([validation_images is not None, validation_steps is not None]):
+            raise TypeError(
+                "Invalid keyword arguments: "
+                "Both validation_images and validation_steps"
+                "must be set to log images"
+            )
 
         self.ema.to(self.accelerator.device)
         progress_bar = tqdm(
-            range(self.global_step, self.max_train_steps),
+            range(0, self.max_train_steps),
             disable=not self.accelerator.is_local_main_process or disable_progress_bar,
         )
         progress_bar.set_description("Steps")
+        if self.resume_from_checkpoint:
+            progress_bar.update(self.global_step)
 
-        for _epoch in range(self.first_epoch, self.epochs):
+        for epoch in range(self.first_epoch, self.epochs):
             self.unet.train()
             train_loss = 0.0
             for step, batch in enumerate(self.train_dataloader):
 
-                if self._skip_step(step):
-                    if step % self.gradient_accumulation_steps == 0:
-                        progress_bar.update(1)
+                if self._skip_step(step=step, epoch=epoch):
                     continue
 
                 with self.accelerator.accumulate(self.unet):
@@ -198,11 +251,26 @@ class Trainer:
                     self.ema.step(self.unet.parameters())
                     progress_bar.update(1)
                     self.global_step += 1
+                    self.accelerator.log(
+                        values={"train_loss": train_loss}, step=self.global_step
+                    )
                     train_loss = 0.0
                     self._save_checkpoint()
                 progress_bar.set_postfix(step_loss=loss.detach().item())
 
+                if self.accelerator.is_main_process:
+                    pipeline = Pix2PixColorizerPipeline(
+                        unet=self.accelerator.unwrap_model(self.unet),
+                        scheduler=self.noise_scheduler,
+                    )
+                    self.tracker_evaluate_images(
+                        pipeline=pipeline,
+                        val_images=validation_images,
+                        val_steps=validation_steps,
+                    )
+
                 if self.global_step >= self.max_train_steps:
                     break
+
         self.accelerator.wait_for_everyone()
         self.accelerator.end_training()
