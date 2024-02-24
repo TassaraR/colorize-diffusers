@@ -259,6 +259,11 @@ class Trainer:
                 progress_bar.set_postfix(step_loss=loss.detach().item())
 
                 if self.accelerator.is_main_process:
+
+                    # Move to evaluate_images
+                    self.ema.store(self.unet.parameters())
+                    self.ema.copy_to(self.unet.parameters())
+
                     pipeline = Pix2PixColorizerPipeline(
                         unet=self.accelerator.unwrap_model(self.unet),
                         scheduler=self.noise_scheduler,
@@ -268,6 +273,10 @@ class Trainer:
                         val_images=validation_images,
                         val_steps=validation_steps,
                     )
+                    # Move to evlauate_images
+                    self.ema.restore(self.unet.params())
+                    del pipeline
+                    torch.cuda.empty_cache()
 
                 if self.global_step >= self.max_train_steps:
                     break
