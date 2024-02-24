@@ -14,7 +14,7 @@ from torchvision.utils import make_grid
 from tqdm.auto import tqdm
 
 import colorizer.utils as utils
-from colorizer.inference import Pix2PixColorizerPipeline
+from colorizer.pipeline import Pix2PixColorizerPipeline
 
 
 class Trainer:
@@ -37,10 +37,7 @@ class Trainer:
         tracker_log_directory: str = "logs",
     ):
 
-        default_accelerator_settings = {
-            "mixed_precision": "fp16",
-        }
-
+        default_accelerator_settings = {}
         if tracker_experiment_name:
             default_accelerator_settings["log_with"] = "tensorboard"
             default_accelerator_settings["project_dir"] = tracker_log_directory
@@ -152,9 +149,16 @@ class Trainer:
             )
             self.accelerator.save_state(save_path)
 
+    def save_pipeline(self, path, save_kwargs: dict | None) -> None:
+        pipeline = Pix2PixColorizerPipeline(
+            unet=self.accelerator.unwrap_model(self.unet),
+            scheduler=self.noise_scheduler,
+        )
+        kwargs = save_kwargs if save_kwargs else {}
+        pipeline.save_pretrained(save_directory=path, **kwargs)
+
     def tracker_evaluate_images(
         self,
-        pipeline: Pix2PixColorizerPipeline,
         val_images: torch.Tensor | None = None,
         val_steps: int | None = None,
     ) -> None:
@@ -167,6 +171,16 @@ class Trainer:
             or self.global_step == self.max_train_steps
         )
         if self.accelerator.is_main_process and is_valid_step:
+
+            # Move to evaluate_images
+            self.ema.store(self.unet.parameters())
+            self.ema.copy_to(self.unet.parameters())
+
+            pipeline = Pix2PixColorizerPipeline(
+                unet=self.accelerator.unwrap_model(self.unet),
+                scheduler=self.noise_scheduler,
+            )
+
             for tracker in self.accelerator.trackers:
                 if tracker.name == "tensorboard":
                     writer = tracker.writer
@@ -175,6 +189,10 @@ class Trainer:
                     writer.add_image(
                         tag="eval-images", img_tensor=grid, global_step=self.global_step
                     )
+
+            self.ema.restore(self.unet.params())
+            del pipeline
+            torch.cuda.empty_cache()
 
     def train(
         self,
@@ -258,16 +276,10 @@ class Trainer:
                     self._save_checkpoint()
                 progress_bar.set_postfix(step_loss=loss.detach().item())
 
-                if self.accelerator.is_main_process:
-                    pipeline = Pix2PixColorizerPipeline(
-                        unet=self.accelerator.unwrap_model(self.unet),
-                        scheduler=self.noise_scheduler,
-                    )
-                    self.tracker_evaluate_images(
-                        pipeline=pipeline,
-                        val_images=validation_images,
-                        val_steps=validation_steps,
-                    )
+                self.tracker_evaluate_images(
+                    val_images=validation_images,
+                    val_steps=validation_steps,
+                )
 
                 if self.global_step >= self.max_train_steps:
                     break
