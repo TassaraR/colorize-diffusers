@@ -18,6 +18,60 @@ from colorizer.pipeline import Pix2PixColorizerPipeline
 
 
 class Trainer:
+    """Trainer class used to train colorization diffusion models.
+
+    Parameters
+    ----------
+    unet : diffusers.UNet2DModel
+        Unconditioned UNet model from Hugging Face's diffusers package to use
+        as the core model for the pipeline.
+
+    noise_scheduler : diffusers.DDPMScheduler
+        Noise scheduler from Hugging Face's diffusers package
+
+    ema : diffusers.training_utils.EMAModel
+        Exponential Moving Average model to use during training
+
+    optimizer : torch.optim.Optimizer
+        PyTorch optimzer that's going to be used to train the model
+
+    train_dataloader : torch.utils.data.DataLoader
+        DataLoader containing the batchs of data to be used during training
+
+    epochs : int
+        Maximum amount of times the training dataset will be traversed to completion
+        - Can be overriden by `max_train_steps` argument
+
+    gradient_accumulation_steps : int, default=1
+        Total amount of steps the loss will be accumulated for during training
+        (Accumulate gradient over multiple steps before updating)
+
+    max_train_steps : int, default=None
+        Maximum total steps for training. Overrides total `epochs` to train
+
+    lr_scheduler : Callable, default=None
+        Learning rate scheduler to be used for training
+
+    checkpointing_steps : int, default=None
+        Creates training checkpoints every `checkpointin_steps` steps
+
+    checkpoints_total_limit : int, default=None
+        Maximum amount of checkpoints to have at a single training time
+
+    checkpoints_output_dir : str, default=None
+        Directory path where checkpoints will be saved to
+
+    accelerator_kwargs : dict, default=None
+        Keyword arguments to pass to accelerate.Accelerator which drives the whole
+        training routine.
+
+    tracker_experiment_name : str, default=None
+        Name for tracking the current experiment/training routine in TensorBoard.
+
+    tracker_log_directory : str, default="logs"
+        Directory where the TensorBoard experiment logs will be saved
+    """
+
     def __init__(
         self,
         unet: UNet2DModel,
@@ -86,6 +140,13 @@ class Trainer:
         self.resume_step = -1
 
     def _recompute_training_steps(self) -> None:
+        """Computes/Re-computes the total training steps based on the values of the
+        following parameters:
+        - epochs
+        - max_train_steps
+        - gradient_accumulation_steps
+        - total batches
+        """
         if self.max_train_steps is None:
             self.max_train_steps = self.epochs * self.num_update_steps_per_epoch
             self.overrode_max_train_steps = True
@@ -98,6 +159,13 @@ class Trainer:
         self.epochs = math.ceil(self.max_train_steps / self.num_update_steps_per_epoch)
 
     def load_checkpoint(self, path: str) -> None:
+        """Loads an existing training checkpoint to resume training from that point on.
+
+        Parameters
+        ----------
+        path : str
+            Path of the checkpoint directory to be used.
+        """
         self.accelerator.load_state(path)
         self.global_step = int(path.split("-")[-1])
         resume_global_step = self.global_step * self.gradient_accumulation_steps
@@ -110,6 +178,22 @@ class Trainer:
         self.resume_from_checkpoint = True
 
     def _skip_step(self, step: int, epoch: int) -> bool:
+        """When starting from a checkpoint. Checks is a step should be
+        skipped as we already trained through it
+
+        Parameters
+        ----------
+        step : int
+            Current training step
+
+        epoch : int
+            Current training epoch
+
+        Returns
+        -------
+        skip_condition: bool
+            True if a step should be skipped, else False
+        """
         skip_condition = (
             self.resume_from_checkpoint
             and epoch == self.first_epoch
@@ -118,6 +202,13 @@ class Trainer:
         return skip_condition
 
     def _save_checkpoint(self) -> None:
+        """Creates training checkpoints on `self.checkpoints_output_dir` every
+        `self.checkpointing_steps`.
+
+        Checkpoints can be used to resume training later and are saved in the following
+        format:
+        `checkpoint-{last-training-step}`
+        """
         if self.checkpointing_steps is None or self.checkpoints_output_dir is None:
             return
 
@@ -150,6 +241,24 @@ class Trainer:
             self.accelerator.save_state(save_path)
 
     def save_pipeline(self, path, save_kwargs: dict | None) -> None:
+        """Saves the trained model config and weights so it can be used
+        for inference within a Pix2PixColorizerPipeline using:
+
+        ```
+        from colorizer.pipeline import Pix2PixColorizerPipeline
+
+        pipeline = Pix2PixColorizerPipeline.from_pretrained(path)
+        ```
+
+        Parameters
+        ----------
+        path : str
+            Path name were the model config and weights will be saved to
+
+        save_kwargs : dict, default=None
+            Additional saving parameters from diffusers.DiffusionModel.from_pretrained
+            to be used if needed.
+        """
         pipeline = Pix2PixColorizerPipeline(
             unet=self.accelerator.unwrap_model(self.unet),
             scheduler=self.noise_scheduler,
@@ -162,6 +271,17 @@ class Trainer:
         val_images: torch.Tensor | None = None,
         val_steps: int | None = None,
     ) -> None:
+        """Performs inference over a validation set every `val_steps` steps and saves
+        the results to be displayed in TensorBoard
+
+        Parameters
+        ----------
+        val_images : torch.Tensor, default=None
+            Validation images to be used for inference if available
+
+        val_steps : int, default=None
+            Perform validation inference over every time `val_steps` steps have passed
+        """
 
         if any([val_images is None, val_steps is None]):
             return
@@ -200,6 +320,22 @@ class Trainer:
         validation_steps: int | None = None,
         disable_progress_bar: bool = False,
     ) -> None:
+        """Main training loop for the colorization task
+
+        Parameters
+        ----------
+        validation_images : torch.Tensor, default=None
+            If included in conjunction with `validation_steps` validation inference
+            will ocurr every time `validation_steps` have passed
+
+        validation_steps : int, default=None
+            total validation steps that need to pass before performing validation
+            inference
+
+        disable_progress_bar : bool, default=False
+            Disables the training progress bar that displays how many steps has
+            the model been trained on
+        """
 
         if any(
             [validation_images is not None, validation_steps is not None]

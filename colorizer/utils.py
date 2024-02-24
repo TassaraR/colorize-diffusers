@@ -13,7 +13,22 @@ from torchvision.utils import make_grid
 def rgb_to_zero_centered_normalized_lab(
     images: torch.Tensor, split_light_and_color: bool = True
 ) -> torch.Tensor | tuple[torch.Tensor]:
+    """Transforms an RGB image to LAB color space and normalizes
+    the LAB channels between -1 to 1
 
+    Parameters
+    ----------
+    images : torch.Tensor
+        Batch of images in RGB Format with shape (b, c, h, w)
+
+    split_light_and_color : bool, default=True
+        If True returns a tuple of the light channel and AB channels
+        concatenated, else returns a single LAB image
+
+    Returns
+    -------
+    Normalized lab or tuple of light and ab channel tensors
+    """
     lab_images = rgb_to_lab(images)
     light_ch = (lab_images[:, [0], :, :] / 50) - 1
     ab_ch = lab_images[:, [1, 2], :, :] / 110
@@ -24,6 +39,17 @@ def rgb_to_zero_centered_normalized_lab(
 
 
 def get_absolute_path_given_relative(relative_path: str) -> str:
+    """Given a relative path, creates an absolute path from it
+
+    Parameters
+    ----------
+    relative_path : str
+        relative file from the current working directory
+
+    Returns
+    -------
+    Absolute path based on the relative path
+    """
     dir_path = os.path.dirname(os.path.realpath(__file__))
     abs_path = os.path.join(dir_path, relative_path)
     abs_path = os.path.normpath(abs_path)
@@ -38,7 +64,33 @@ def load_validation_images(
     random_sample: bool = False,
     seed: int | None = None,
 ) -> torch.Tensor:
+    """Loads a list of validation images to tensors
 
+    Parameters
+    ----------
+    images_paths : list[str]
+        List of images paths to be loaded into tensors
+
+    resize : int
+        Resize all the images to a specific squared shape
+
+    load_as_rgb : bool, default=False
+        Images can be loaded as grayscale (single channel) or as RGB (three channels)
+
+    max_images : int, default=16
+        Load only `max_images` of the total images in `images_paths`
+
+    random_sample : bool, default=False
+        If False, the first images in the list up to `max_images` will be loaded. Else
+        a random sample of ordered images will be used instead
+
+    seed : int, default=None
+        When `random_sample` is True, use a seed for deterministic samples
+
+    Returns
+    -------
+    batch of torch.Tensor images
+    """
     mode = io.ImageReadMode.GRAY
     norm_mean = [0.5]
     norm_std = [0.5]
@@ -71,6 +123,30 @@ def load_validation_images(
 def evaluate_model(
     pred_images: torch.tensor, step: int, nrow: int = 4, save_dir: str | None = None
 ) -> np.ndarray:
+    """Creates a grid with the predicted images for easier visualization
+    and visual evaluation of the model training process and results
+
+    Parameters
+    ----------
+    pred_images : torch.Tensor
+        Images predicted by the model in tensor format
+
+    step : int
+        Step of the training process. Will only influence the name of the saved
+        image if `save_dir` is enabled
+
+    nrow : int, default=4
+        Maximum amount of rows in the grid, additional images will be placed in
+        columns
+
+    save_dir : str, default=None
+        If valid, saves the grid with results to a local file at this directory
+
+    Returns
+    -------
+    images grid of type numpy.ndarray
+    - single image composed of multiple smaller images
+    """
     grid = make_grid(pred_images, nrow=nrow, padding=1).permute(1, 2, 0).numpy()
     if save_dir is not None:
         image_grid = Image.fromarray((grid.numpy() * 255).astype(np.uint8))
