@@ -14,7 +14,7 @@ from torchvision.utils import make_grid
 from tqdm.auto import tqdm
 
 import colorizer.utils as utils
-from colorizer.inference import Pix2PixColorizerPipeline
+from colorizer.pipeline import Pix2PixColorizerPipeline
 
 
 class Trainer:
@@ -37,10 +37,7 @@ class Trainer:
         tracker_log_directory: str = "logs",
     ):
 
-        default_accelerator_settings = {
-            "mixed_precision": "fp16",
-        }
-
+        default_accelerator_settings = {}
         if tracker_experiment_name:
             default_accelerator_settings["log_with"] = "tensorboard"
             default_accelerator_settings["project_dir"] = tracker_log_directory
@@ -151,6 +148,14 @@ class Trainer:
                 self.checkpoints_output_dir, f"checkpoint-{self.global_step}"
             )
             self.accelerator.save_state(save_path)
+
+    def save_pipeline(self, path, save_kwargs: dict | None) -> None:
+        pipeline = Pix2PixColorizerPipeline(
+            unet=self.accelerator.unwrap_model(self.unet),
+            scheduler=self.noise_scheduler,
+        )
+        kwargs = save_kwargs if save_kwargs else {}
+        pipeline.save_pretrained(save_directory=path, **kwargs)
 
     def tracker_evaluate_images(
         self,
