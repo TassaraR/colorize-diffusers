@@ -154,7 +154,6 @@ class Trainer:
 
     def tracker_evaluate_images(
         self,
-        pipeline: Pix2PixColorizerPipeline,
         val_images: torch.Tensor | None = None,
         val_steps: int | None = None,
     ) -> None:
@@ -167,6 +166,16 @@ class Trainer:
             or self.global_step == self.max_train_steps
         )
         if self.accelerator.is_main_process and is_valid_step:
+
+            # Move to evaluate_images
+            self.ema.store(self.unet.parameters())
+            self.ema.copy_to(self.unet.parameters())
+
+            pipeline = Pix2PixColorizerPipeline(
+                unet=self.accelerator.unwrap_model(self.unet),
+                scheduler=self.noise_scheduler,
+            )
+
             for tracker in self.accelerator.trackers:
                 if tracker.name == "tensorboard":
                     writer = tracker.writer
@@ -175,6 +184,10 @@ class Trainer:
                     writer.add_image(
                         tag="eval-images", img_tensor=grid, global_step=self.global_step
                     )
+
+            self.ema.restore(self.unet.params())
+            del pipeline
+            torch.cuda.empty_cache()
 
     def train(
         self,
@@ -258,25 +271,10 @@ class Trainer:
                     self._save_checkpoint()
                 progress_bar.set_postfix(step_loss=loss.detach().item())
 
-                if self.accelerator.is_main_process:
-
-                    # Move to evaluate_images
-                    self.ema.store(self.unet.parameters())
-                    self.ema.copy_to(self.unet.parameters())
-
-                    pipeline = Pix2PixColorizerPipeline(
-                        unet=self.accelerator.unwrap_model(self.unet),
-                        scheduler=self.noise_scheduler,
-                    )
-                    self.tracker_evaluate_images(
-                        pipeline=pipeline,
-                        val_images=validation_images,
-                        val_steps=validation_steps,
-                    )
-                    # Move to evlauate_images
-                    self.ema.restore(self.unet.params())
-                    del pipeline
-                    torch.cuda.empty_cache()
+                self.tracker_evaluate_images(
+                    val_images=validation_images,
+                    val_steps=validation_steps,
+                )
 
                 if self.global_step >= self.max_train_steps:
                     break
