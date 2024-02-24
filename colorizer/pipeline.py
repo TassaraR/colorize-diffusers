@@ -5,6 +5,18 @@ from kornia.color.lab import lab_to_rgb
 
 
 class Pix2PixColorizerPipeline(DiffusionPipeline):
+    """Custom diffusion pipeline for colorizing grayscale images
+
+    Parameters
+    ----------
+    unet : UNet2DModel
+        Unconditioned UNet model used for predicting noise
+
+    scheduler : DDPMScheduler
+        Noise scheduler used to calculate previous samples based on
+        unet's predictions
+    """
+
     model_cpu_offload_seq = "unet"
 
     def __init__(self, unet: UNet2DModel, scheduler: DDPMScheduler):
@@ -17,9 +29,26 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
         bw_images: torch.Tensor,
         generator: torch.Generator | list[torch.Generator] | None = None,
         num_inference_steps: int = 1000,
-        return_dict: bool = True,
+        return_tuple: bool = False,
     ) -> ImagePipelineOutput | tuple[torch.Tensor]:
+        """Prediction pipeline given grayscale images
 
+        Parameters
+        ----------
+        bw_images : torch.tensor
+            Input grayscale images with shape (b, c, h, w)
+
+        generator : torch.Generator
+            Generator used for settings a seed and making noise generation
+            deterministic
+
+        num_inference_steps : int, default=1000
+            Total denoising steps
+
+        return_tuple : bool, default=False
+            If set the pipeline returns a tuple with predicted images instead
+            of ImagePipelineOutput class with the predictions
+        """
         bw_images = bw_images.to(self.device)  # range -1 to 1
         # Sample gaussian noise to begin loop
         batch_size = bw_images.shape[0]
@@ -62,7 +91,7 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
         output = lab_to_rgb(output)
         output = output.cpu()
 
-        if not return_dict:
+        if return_tuple:
             return (output,)
 
         return ImagePipelineOutput(images=output)
