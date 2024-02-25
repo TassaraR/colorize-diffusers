@@ -29,6 +29,7 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
         bw_images: torch.Tensor,
         generator: torch.Generator | list[torch.Generator] | None = None,
         num_inference_steps: int = 1000,
+        return_ab_only: bool = False,
         return_tuple: bool = False,
     ) -> ImagePipelineOutput | tuple[torch.Tensor]:
         """Prediction pipeline given grayscale images
@@ -44,6 +45,10 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
 
         num_inference_steps : int, default=1000
             Total denoising steps
+
+        return_ab_only : bool, default=False
+            Returns only the predicted AB channels instead of the fully
+            reconstructed image
 
         return_tuple : bool, default=False
             If set the pipeline returns a tuple with predicted images instead
@@ -87,8 +92,12 @@ class Pix2PixColorizerPipeline(DiffusionPipeline):
         lightness = (bw_images + 1) * 50
         ab = ab * 110
 
-        output = torch.concat([lightness, ab], dim=1)
-        output = lab_to_rgb(output)
+        if not return_ab_only:
+            output = torch.concat([lightness, ab], dim=1)
+            output = lab_to_rgb(output)
+        else:
+            output = ab
+
         output = output.cpu()
 
         if return_tuple:
