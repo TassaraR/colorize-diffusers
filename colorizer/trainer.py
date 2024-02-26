@@ -259,6 +259,7 @@ class Trainer:
             Additional saving parameters from diffusers.DiffusionModel.from_pretrained
             to be used if needed.
         """
+        self.ema.copy_to(self.unet.parameters())
         pipeline = Pix2PixColorizerPipeline(
             unet=self.accelerator.unwrap_model(self.unet),
             scheduler=self.noise_scheduler,
