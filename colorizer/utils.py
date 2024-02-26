@@ -1,13 +1,17 @@
 import os
 import random
+from collections import namedtuple
+from typing import NamedTuple
 
 import numpy as np
 import torch
-from kornia.color.lab import rgb_to_lab
+from kornia.color.lab import lab_to_rgb, rgb_to_lab
 from PIL import Image
 from torchvision import io
 from torchvision.transforms import v2
 from torchvision.utils import make_grid
+
+from colorizer.pipeline import Pix2PixColorizerPipeline
 
 
 def rgb_to_zero_centered_normalized_lab(
@@ -153,3 +157,80 @@ def evaluate_model(
         os.makedirs(save_dir, exist_ok=True)
         image_grid.save(os.path.join(save_dir, f"step-{step}.png"))
     return grid.numpy()
+
+
+def prepare_image_for_inference(
+    path: str, input_size: int
+) -> NamedTuple("Output", ("image", torch.Tensor), ("original_shape", tuple[int, int])):
+    """Given an image file path, preprocess the image for inference.
+
+    Parameters
+    ----------
+    path : str
+        path of the image to be used in inference
+
+    input_size : int
+        Input size required by the inference pipeline
+
+    Returns
+    -------
+    NamedTuple composed of:
+    original_image: original grayscale image without transformations. Range: [0.0, 1.0]
+    inference_image: preprocessed tensor representation of the input image
+    """
+    img_tensor = io.read_image(path=path, mode=io.ImageReadMode.GRAY) / 255
+    _, original_height, original_width = img_tensor.shape
+    norm_img_tensor = (img_tensor - 0.5) * 2
+    norm_resized_img_tensor = v2.Resize(size=(input_size, input_size), antialias=True)(
+        norm_img_tensor
+    )
+    output = namedtuple("Output", ["original_image", "inference_image"])
+    return output(norm_resized_img_tensor, img_tensor)
+
+
+def single_image_predict(
+    path: str,
+    pipeline: Pix2PixColorizerPipeline,
+    steps: int = 200,
+    generator: torch.Generator | list[torch.Generator] | None = None,
+) -> torch.Tensor:
+    """Performs inference over a single image given its file path
+
+    Parameters
+    ----------
+    path : str
+        file path of the image to perform inference on
+
+    pipeline : Pix2PixColorizerPipeline
+        Colorization Pipeline instance class
+
+    steps : int, default=200
+        Denoising steps for inference
+
+    generator : torch.Generator | list[torch.Generator], default=None
+        Generator for making the noise generation deterministic
+
+    Returns
+    -------
+    torch.Tensor representation of the colorized image in RGB (ch, h, w)
+    in range [0.0, 1.0]
+    """
+
+    input_size = pipeline.unet.sample_size
+
+    sample = prepare_image_for_inference(path=path, input_size=input_size)
+    input_image = sample.image.unsqueeze(0)
+    original_image = sample.original_image
+    original_shape = (original_image.shape[1], original_image[2])
+
+    pred_ab = pipeline(
+        input_image, num_inference_steps=steps, generator=generator, return_ab_only=True
+    ).images
+
+    pred_ab_resized = v2.Resize(size=original_shape, antialias=True)(pred_ab)
+    pred_lab_image_resized = torch.concat(
+        [original_image * 100, pred_ab_resized], dim=1
+    )
+    pred_rgb_image_resized = lab_to_rgb(pred_lab_image_resized)
+
+    return pred_rgb_image_resized[0]
