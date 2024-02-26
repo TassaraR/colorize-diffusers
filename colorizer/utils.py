@@ -159,7 +159,7 @@ def evaluate_model(
 
 def prepare_image_for_inference(
     path: str, input_size: int
-) -> NamedTuple("Output", ("image", torch.Tensor), ("original_shape", tuple[int])):
+) -> NamedTuple("Output", ("image", torch.Tensor), ("original_shape", tuple[int, int])):
     """Given an image file path, preprocess the image for inference.
 
     Parameters
