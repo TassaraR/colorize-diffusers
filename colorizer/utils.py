@@ -1,5 +1,7 @@
 import os
 import random
+from collections import namedtuple
+from typing import NamedTuple
 
 import numpy as np
 import torch
@@ -153,3 +155,31 @@ def evaluate_model(
         os.makedirs(save_dir, exist_ok=True)
         image_grid.save(os.path.join(save_dir, f"step-{step}.png"))
     return grid.numpy()
+
+
+def prepare_image_for_inference(
+    path: str, input_size: int
+) -> NamedTuple("Output", ("image", torch.Tensor), ("original_shape", tuple[int])):
+    """Given an image file path, preprocess the image for inference.
+
+    Parameters
+    ----------
+    path : str
+        path of the image to be used in inference
+
+    input_size : int
+        Input size required by the inference pipeline
+
+    Returns
+    -------
+    NamedTuple composed of:
+    image: preprocessed tensor representation of the input image
+    original_shape: original height and width of the input image
+    """
+    img_tensor = io.read_image(path=path, mode=io.ImageReadMode.GRAY) / 255
+    _, original_height, original_width = img_tensor.shape
+    original_shape = (original_height, original_width)
+    img_tensor = (img_tensor - 0.5) * 2
+    img_tensor = v2.Resize(size=(input_size, input_size), antialias=True)(img_tensor)
+    output = namedtuple("Output", ["image", "original_shape"])
+    return output(img_tensor, original_shape)
