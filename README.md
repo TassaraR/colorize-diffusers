@@ -1,6 +1,6 @@
 # Colorize Diffusers
 
-Colorizer model using Pix2Pix diffusion based on Hugging Face's Diffusers framework
+Diffusion Pix2Pix colorizer model built using Hugging Face's Diffusers framework
 
 ## How does it work?
 
@@ -139,7 +139,3 @@ trainer.save_pipeline("./colorization-pipeline")
 |<img src="examples/room2/room2-original.png" height=150>| <img src=examples/room2/room2-colorized-1.png height=150> | <img src=examples/room2/room2-original.png height=150> |
 |<img src="examples/snow/snow-original.png" height=150>| <img src=examples/snow/snow-colorized-1.png height=150> | <img src=examples/snow/snow-original.png height=150> |
 |<img src="examples/tv/tv-original.png" height=150>| <img src=examples/tv/tv-colorized-1.png height=150> | <img src=examples/tv/tv-original.png height=150> |
-
-
-
-
