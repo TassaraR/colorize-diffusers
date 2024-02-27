@@ -222,8 +222,8 @@ def single_image_predict(
 
     sample = prepare_image_for_inference(path=path, input_size=input_size)
     input_image = sample.inference_image.unsqueeze(0)
-    original_image = sample.original_image
-    original_shape = (original_image.shape[1], original_image.shape[2])
+    original_image = sample.original_image.unsqueeze(0)
+    original_shape = (original_image.shape[2], original_image.shape[3])
 
     pred_ab = pipeline(
         input_image, num_inference_steps=steps, generator=generator, return_ab_only=True
