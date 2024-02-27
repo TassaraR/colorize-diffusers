@@ -187,7 +187,7 @@ def prepare_image_for_inference(
         norm_img_tensor
     )
     output = namedtuple("Output", ["original_image", "inference_image"])
-    return output(norm_resized_img_tensor, img_tensor)
+    return output(img_tensor, norm_resized_img_tensor)
 
 
 def single_image_predict(
@@ -221,7 +221,7 @@ def single_image_predict(
     input_size = pipeline.unet.sample_size
 
     sample = prepare_image_for_inference(path=path, input_size=input_size)
-    input_image = sample.image.unsqueeze(0)
+    input_image = sample.inference_image.unsqueeze(0)
     original_image = sample.original_image
     original_shape = (original_image.shape[1], original_image[2])
 
