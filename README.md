@@ -49,7 +49,7 @@ pipe = (
     .to("cuda")
 )
 
-img_path = "gioconda-original.jpg"
+img_path = "examples/gioconda/gioconda-original.jpg"
 colorized = single_image_predict(path=img_path, pipeline=pipe)
 
 # save_image(colorized, "gioconda-colorized.png")
@@ -129,3 +129,17 @@ trainer.train(
 
 trainer.save_pipeline("./colorization-pipeline")
 ```
+
+| Input (Grayscale) | Colorized | Original |
+|---|---|---|
+|<img src="examples/sign/sign-original.png" height=150>| <img src=examples/sign/sign-colorized-1.png height=150> | <img src=examples/sign/sign-original.png height=150> |
+|<img src="examples/city/city-original.png" height=150>| <img src=examples/city/city-colorized-1.png height=150> | <img src=examples/city/city-original.png height=150> |
+|<img src="examples/dog/dog-original.png" height=150>| <img src=examples/dog/dog-colorized-1.png height=150> | <img src=examples/dog/dog-original.png height=150> |
+|<img src="examples/room/room-original.png" height=150>| <img src=examples/room/room-colorized-1.png height=150> | <img src=examples/room/room-original.png height=150> |
+|<img src="examples/room2/room2-original.png" height=150>| <img src=examples/room2/room2-colorized-1.png height=150> | <img src=examples/room2/room2-original.png height=150> |
+|<img src="examples/snow/snow-original.png" height=150>| <img src=examples/snow/snow-colorized-1.png height=150> | <img src=examples/snow/snow-original.png height=150> |
+|<img src="examples/tv/tv-original.png" height=150>| <img src=examples/tv/tv-colorized-1.png height=150> | <img src=examples/tv/tv-original.png height=150> |
+
+
+
+
