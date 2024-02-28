@@ -2,6 +2,7 @@
 
 Diffusion Pix2Pix colorizer model built using Hugging Face's Diffusers framework
 
+
 ## How does it work?
 
 Based on a grayscale image we try to predict its colors.
@@ -141,3 +142,16 @@ trainer.save_pipeline("./colorization-pipeline")
 |<img src="examples/room2/room2-bw.png" height=150>| <img src=examples/room2/room2-colorized-1.png height=150> | <img src=examples/room2/room2-original.png height=150> |
 |<img src="examples/snow/snow-bw.png" height=150>| <img src=examples/snow/snow-colorized-1.png height=150> | <img src=examples/snow/snow-original.png height=150> |
 |<img src="examples/tv/tv-bw.png" height=150>| <img src=examples/tv/tv-colorized-1.png height=150> | <img src=examples/tv/tv-original.png height=150> |
+
+
+### Notes
+
+- This is a one-person project on colorizing images using diffusion instead of GANs
+- The models can be trained further and with better much more complicated architectures than the ones I've used but I'm not rich and can't afford to train for much longer and more hardware-hungry models.
+- Sometimes images require multiple runs and different inference steps in order to achieve the desired look so test a lot!
+
+### Some thoughts
+
+- When the model can't colorize an image properly it usually colors it in orange-tones (or completely orange if it does not understand anything of it)
+- Performance can probably be improved by fine-tunning pretrained models instead of training from scratch as I did
+- Trying out a UNet with additional conditioning may yield interesting results as well. Maybe incorporating features extracted from pretrained models such as CLIP.
