@@ -51,6 +51,7 @@ pipe = (
 )
 
 img_path = "examples/gioconda/gioconda-original.jpg"
+# Images are loaded as grayscale with a single channel
 colorized = single_image_predict(path=img_path, pipeline=pipe)
 
 # save_image(colorized, "gioconda-colorized.png")
@@ -120,7 +121,7 @@ trainer = Trainer(
   checkpointing_steps=1000,
   checkpoints_total_limit=10,
   checkpoints_output_dir="checkpoints",
-  tracker_experiment_name="colorize-exp-1",
+  tracker_experiment_name="colorize-exp-1"
 )
 
 trainer.train(
