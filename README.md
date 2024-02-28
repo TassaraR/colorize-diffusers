@@ -130,6 +130,8 @@ trainer.train(
 trainer.save_pipeline("./colorization-pipeline")
 ```
 
+## Examples
+
 | Input (Grayscale) | Colorized | Original |
 |---|---|---|
 |<img src="examples/sign/sign-bw.png" height=150>| <img src=examples/sign/sign-colorized-1.png height=150> | <img src=examples/sign/sign-original.png height=150> |
