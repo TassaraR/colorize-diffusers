@@ -1,5 +1,9 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "colorize-diffusers"
+name = "colorizer"
 version = "0.0.1"
 description = "Colorize images using conditioned pix2pix diffusion models"
 readme = "README.md"
@@ -8,11 +12,10 @@ authors = [
     { name = "Renzo Tassara", email = "rtassaramiller@gmail.com" }
 ]
 classifiers = ["Programming Language :: Python :: 3.11"]
-dynamic = ["depndencies"]
+dynamic = ["dependencies"]
 
 [tools.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-
 
 [tool.ruff]
 select = [
